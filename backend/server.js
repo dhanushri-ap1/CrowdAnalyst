@@ -99,13 +99,35 @@ app.get("/predict-risk", async (req, res) => {
           category: place.category
         });
 
-        if (alternatives.length > 0) {
-          recommendation = `Redirect users to nearest ${place.category}: ${alternatives
-            .map(p => p.name)
-            .join(", ")}`;
-        } else {
-          recommendation = "No nearby alternative available";
+        let bestOption = null;
+        let lowestCrowd = Infinity;
+
+        for (const alt of alternatives) {
+          const altData = await Report.aggregate([
+            {
+              $match: {
+                placeId: alt._id
+              }
+            },
+            {
+              $group: {
+                _id: "$placeId",
+                avgCrowd: { $avg: "$crowdLevel" }
+              }
+            }
+          ]);
+
+          const altCrowd = altData.length ? altData[0].avgCrowd : 0;
+
+          if (altCrowd < lowestCrowd) {
+            lowestCrowd = altCrowd;
+            bestOption = alt.name;
+          }
         }
+
+        recommendation = bestOption
+          ? `Redirect users to ${bestOption}`
+          : "No nearby alternative available";
       }
 
       results.push({
