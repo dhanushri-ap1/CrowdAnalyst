@@ -23,20 +23,14 @@ const io = new Server(server, {
 });
 
 app.get("/", (req, res) => {
-  res.send("CrowdPulse API is running...");
+  res.send("FlowGuard API is running...");
 });
 
 app.get("/places", async (req, res) => {
   try {
-    console.log("GET /places hit");
-
     const places = await Place.find();
-
-    console.log("Places found:", places);
-
     res.json(places);
   } catch (error) {
-    console.log("Error in /places:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -54,7 +48,6 @@ app.post("/report", async (req, res) => {
 
     res.status(201).json(report);
   } catch (error) {
-    console.log("Error in /report:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -73,7 +66,60 @@ app.get("/crowd-data", async (req, res) => {
 
     res.json(data);
   } catch (error) {
-    console.log("Error in /crowd-data:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/predict-risk", async (req, res) => {
+  try {
+    const crowdData = await Report.aggregate([
+      {
+        $group: {
+          _id: "$placeId",
+          avgCrowd: { $avg: "$crowdLevel" }
+        }
+      }
+    ]);
+
+    const results = [];
+
+    for (const item of crowdData) {
+      const place = await Place.findById(item._id);
+
+      if (!place) continue;
+
+      let status = "Stable";
+      let recommendation = "No action needed";
+
+      if (item.avgCrowd > 4) {
+        status = "High Risk";
+
+        const alternatives = await Place.find({
+          name: { $in: place.connections },
+          category: place.category
+        });
+
+        if (alternatives.length > 0) {
+          recommendation = `Redirect users to nearest ${place.category}: ${alternatives
+            .map(p => p.name)
+            .join(", ")}`;
+        } else {
+          recommendation = "No nearby alternative available";
+        }
+      }
+
+      results.push({
+        place: place.name,
+        category: place.category,
+        avgCrowd: item.avgCrowd.toFixed(2),
+        status,
+        recommendation
+      });
+    }
+
+    res.json(results);
+
+  } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });

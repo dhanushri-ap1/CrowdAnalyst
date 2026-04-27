@@ -1,15 +1,8 @@
 const mongoose = require("mongoose");
 
 const placeSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true
-  },
-
-  category: {
-    type: String,
-    required: true
-  },
+  name: String,
+  category: String,
 
   location: {
     type: {
@@ -17,12 +10,10 @@ const placeSchema = new mongoose.Schema({
       enum: ["Point"],
       default: "Point"
     },
+    coordinates: [Number]
+  },
 
-    coordinates: {
-      type: [Number],
-      required: true
-    }
-  }
+  connections: [String]
 });
 
 placeSchema.index({ location: "2dsphere" });
